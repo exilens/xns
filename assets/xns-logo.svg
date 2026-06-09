@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#15171a"/>
+  <g transform="translate(-10 23)">
+    <text x="197" y="389" fill="#f4f4f5" font-family="NotoSans Bold, Noto Sans, Arial, sans-serif" font-size="148" font-weight="800">e</text>
+    <text x="285" y="389" fill="#ff7a18" font-family="NotoSans Bold, Noto Sans, Arial, sans-serif" font-size="148" font-weight="800">X</text>
+    <text x="384" y="389" fill="#f4f4f5" font-family="NotoSans Bold, Noto Sans, Arial, sans-serif" font-size="148" font-weight="800">ile</text>
+    <text x="274" y="529" fill="#ff7a18" font-family="NotoSans Bold, Noto Sans, Arial, sans-serif" font-size="148" font-weight="800">N</text>
+    <text x="394" y="529" fill="#f4f4f5" font-family="NotoSans Bold, Noto Sans, Arial, sans-serif" font-size="148" font-weight="800">ame</text>
+    <text x="293" y="669" fill="#ff7a18" font-family="NotoSans Bold, Noto Sans, Arial, sans-serif" font-size="148" font-weight="800">S</text>
+    <text x="375" y="669" fill="#f4f4f5" font-family="NotoSans Bold, Noto Sans, Arial, sans-serif" font-size="148" font-weight="800">ystem</text>
+  </g>
+</svg>
