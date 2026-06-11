@@ -49,6 +49,7 @@ type lookupResponse struct {
 	OwnerKey         string   `json:"owner_key,omitempty"`
 	ExpirationHeight uint64   `json:"expiration_height,omitempty"`
 	RemainingBlocks  uint64   `json:"remaining_blocks,omitempty"`
+	Finalized        bool     `json:"finalized"`
 	SourceTxIDs      []string `json:"source_txids,omitempty"`
 }
 
@@ -668,6 +669,7 @@ func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
 		OwnerKey:         entry.OwnerKey,
 		ExpirationHeight: entry.ExpirationHeight,
 		RemainingBlocks:  entry.ExpirationHeight - height,
+		Finalized:        height-entry.LastUpdateHeight >= 10,
 		SourceTxIDs:      entry.SourceTxIDs,
 	})
 }
