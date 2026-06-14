@@ -16,6 +16,23 @@ This was a source and local-build security pass, not a live mainnet transaction 
 
 ## Findings addressed
 
+### 0. No safe dry-run mode
+
+Previous behavior:
+
+- `xns claim` always proceeded from transaction preparation to `sign_transfer` and `submit_transfer`.
+- That made live integration testing risky because a funded wallet could broadcast a real claim.
+
+Resolution:
+
+- Added `--dry-run`.
+- The dry-run path opens and refreshes the wallet, prepares the watch wallet, imports key images, creates the unsigned transfer, and patches the XNS payload.
+- The dry-run path returns before `sign_transfer` and before `submit_transfer`, so it does not create a signed transaction blob and cannot broadcast through XNS.
+
+Residual risk:
+
+- A dry run with an unfunded wallet can still stop earlier at Monero transfer construction with `not enough money`. That is expected and safe.
+
 ### 1. Unauthenticated local wallet RPC
 
 Previous behavior:
@@ -114,10 +131,31 @@ Results:
 - Executable password-file parsing smoke test: passed by reaching expected owner-key validation before wallet access
 - Executable password-stdin parsing smoke test: passed by reaching expected owner-key validation before wallet access
 
+Remote live/dry-run validation:
+
+- Host: private LAN Linux host
+- SSH host key: pinned during testing, redacted from public report
+- OS: Linux `6.18.34-1-lts` x86_64
+- Go: `go1.26.4-X:nodwarf5 linux/amd64`
+- Monero: `v0.18.5.0-release`
+- `monero-wallet-rpc`: present at `/usr/bin/monero-wallet-rpc`
+- Local daemon: none listening on the usual mainnet/stagenet/testnet RPC ports
+- Feather wallet files: none found in the usual Linux document/config locations checked
+- Remote build: passed
+- Remote `go test -count=1 ./...`: passed
+- Remote executable smoke test: passed
+- Throwaway stagenet wallet creation: passed
+- Stagenet daemon probe: multiple public stagenet daemons agreed at height `2140876` with hash `3a25349f120128553af43941d122c92b7f1b77e9353ae0dece1220e33ece9d28`
+- Remote command exercised: `xns claim --stagenet --dry-run --wallet-password-file ...`
+- Dry-run result: failed safely with `rpc error -17: not enough money`
+- Cleanup check: no `monero-wallet-rpc` process remained
+- Cleanup check: no `/tmp/xns-claim-*` directory remained
+- Throwaway wallet cleanup: removed from `/tmp`
+
 Final local Windows artifact:
 
 - Path: `dist/xns-windows-amd64/xns.exe`
-- SHA256: `9A3B307A92CD84EEAFB78F6D0BF8814FA2E742ADD502115488B7BE18C0DC26B9`
+- SHA256: redacted from public report; compute locally with `Get-FileHash dist\xns-windows-amd64\xns.exe -Algorithm SHA256`
 
 Additional tests added:
 
@@ -130,9 +168,10 @@ Additional tests added:
 
 ## Not tested
 
-- Live `monero-wallet-rpc` integration on this workstation, because `monero-wallet-rpc` was not installed in `PATH`.
-- Live Feather wallet opening.
+- Live `monero-wallet-rpc` integration on the Windows workstation, because `monero-wallet-rpc` was not installed in `PATH`.
+- Live Feather wallet opening, because no Feather wallet files were found on the remote host and none are available locally.
 - Live mainnet or stagenet claim broadcast.
+- Funded-wallet dry run that reaches successful unsigned transaction construction; the remote throwaway wallet was intentionally unfunded and stopped at Monero's insufficient-funds check.
 
 ## Operational recommendations
 

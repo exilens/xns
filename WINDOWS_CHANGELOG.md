@@ -20,11 +20,22 @@ This branch hardens the Windows claim/indexer path for local use with Monero wal
 
 ## CLI additions
 
+- Added `--dry-run` for preparing a claim transaction without signing or broadcasting it.
 - Added `--wallet-password-file <path>` for reading the Monero wallet password from a file.
 - Added `--wallet-password-stdin` for reading the Monero wallet password from stdin.
 - Preserved the existing `--wallet-password <password>` option for backward compatibility.
 - Enforced exactly one wallet password source among `--wallet-password`, `--wallet-password-file`, and `--wallet-password-stdin`.
 - Password file/stdin inputs trim trailing CR/LF line endings only, preserving spaces and tabs inside the password.
+
+## Remote dry-run validation
+
+- Tested on a remote Linux host over SSH with Go `1.26.4` and Monero `v0.18.5.0-release`.
+- Created a throwaway stagenet wallet under `/tmp`.
+- Built the branch on the remote host.
+- Ran `xns claim --stagenet --dry-run` against a public stagenet daemon.
+- The empty wallet failed safely with Monero RPC error `-17: not enough money`, after real wallet RPC startup/open/refresh and before any signing or broadcast.
+- Confirmed no `monero-wallet-rpc` process remained after the dry run.
+- Confirmed the temporary `xns-claim-*` working directory was removed.
 
 ## Dependency and toolchain changes
 

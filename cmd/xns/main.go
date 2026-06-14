@@ -57,6 +57,7 @@ func runClaim(args []string) error {
 	fs := flag.NewFlagSet("claim", flag.ExitOnError)
 	fs.BoolVar(&cfg.Mainnet, "mainnet", false, "use mainnet")
 	fs.BoolVar(&cfg.Stagenet, "stagenet", false, "use stagenet")
+	fs.BoolVar(&cfg.DryRun, "dry-run", false, "prepare claim transaction without signing or broadcasting")
 	fs.StringVar(&cfg.WalletFile, "wallet-file", "", "Monero wallet file")
 	fs.StringVar(&cfg.WalletPassword, "wallet-password", "", "Monero wallet password")
 	fs.StringVar(&walletPasswordFile, "wallet-password-file", "", "read Monero wallet password from file")

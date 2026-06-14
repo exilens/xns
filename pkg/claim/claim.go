@@ -24,6 +24,7 @@ import (
 type Config struct {
 	Mainnet           bool
 	Stagenet          bool
+	DryRun            bool
 	WalletFile        string
 	WalletPassword    string
 	WalletPasswordSet bool
@@ -39,6 +40,7 @@ type Result struct {
 	Owner        string   `json:"owner"`
 	Years        uint64   `json:"years"`
 	AmountAtomic uint64   `json:"amount_atomic"`
+	DryRun       bool     `json:"dry_run,omitempty"`
 	TxHashList   []string `json:"tx_hash_list"`
 }
 
@@ -235,6 +237,16 @@ func run(cfg Config, payload [xns.PayloadSize]byte) (Result, error) {
 	patched, _, err := monero.PatchUnsignedTxSetHex(transfer.UnsignedTxSet, viewSecret, payload)
 	if err != nil {
 		return Result{}, err
+	}
+	if cfg.DryRun {
+		return Result{
+			Network:      xns.NetworkName(cfg.Stagenet),
+			Name:         cfg.Name,
+			Owner:        cfg.Owner,
+			Years:        cfg.Years,
+			AmountAtomic: amount,
+			DryRun:       true,
+		}, nil
 	}
 
 	log.Print("signing and broadcasting")
