@@ -1,6 +1,8 @@
 package claim
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,11 +43,13 @@ type Result struct {
 }
 
 type rpcProcess struct {
-	cmd      *exec.Cmd
-	log      *os.File
-	logPath  string
-	done     chan struct{}
-	stopOnce sync.Once
+	cmd         *exec.Cmd
+	log         *os.File
+	logPath     string
+	rpcUser     string
+	rpcPassword string
+	done        chan struct{}
+	stopOnce    sync.Once
 }
 
 func Run(cfg Config) (Result, error) {
@@ -99,7 +104,7 @@ func run(cfg Config, payload [xns.PayloadSize]byte) (Result, error) {
 		return Result{}, err
 	}
 	defer fullProc.stop()
-	full := monero.NewWallet(fmt.Sprintf("http://127.0.0.1:%d", fullPort))
+	full := monero.NewWalletWithLogin(fmt.Sprintf("http://127.0.0.1:%d", fullPort), fullProc.rpcUser, fullProc.rpcPassword)
 	if err := waitWallet(full, fullProc, "full"); err != nil {
 		return Result{}, err
 	}
@@ -140,7 +145,7 @@ func run(cfg Config, payload [xns.PayloadSize]byte) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	watch := monero.NewWallet(fmt.Sprintf("http://127.0.0.1:%d", watchPort))
+	watch := monero.NewWalletWithLogin(fmt.Sprintf("http://127.0.0.1:%d", watchPort), watchProc.rpcUser, watchProc.rpcPassword)
 	if err := waitWallet(watch, watchProc, "watch"); err != nil {
 		watchProc.stop()
 		return Result{}, err
@@ -171,7 +176,7 @@ func run(cfg Config, payload [xns.PayloadSize]byte) (Result, error) {
 		return Result{}, err
 	}
 	defer watchProc.stop()
-	watch = monero.NewWallet(fmt.Sprintf("http://127.0.0.1:%d", watchPort))
+	watch = monero.NewWalletWithLogin(fmt.Sprintf("http://127.0.0.1:%d", watchPort), watchProc.rpcUser, watchProc.rpcPassword)
 	if err := waitWallet(watch, watchProc, "watch"); err != nil {
 		return Result{}, err
 	}
@@ -258,10 +263,25 @@ func run(cfg Config, payload [xns.PayloadSize]byte) (Result, error) {
 }
 
 func startWalletRPC(cfg Config, port int, logPath, walletFile, walletDir, password string) (*rpcProcess, error) {
+	rpcPassword, err := randomHex(32)
+	if err != nil {
+		return nil, err
+	}
+	configPath := logPath + ".conf"
+	var passwordFile string
+	if walletFile != "" {
+		passwordFile = logPath + ".wallet-password"
+		if err := writePrivateFile(passwordFile, []byte(password)); err != nil {
+			return nil, err
+		}
+	}
+	if err := writeWalletRPCConfig(configPath, "xns", rpcPassword, passwordFile); err != nil {
+		return nil, err
+	}
 	args := []string{
+		"--config-file", configPath,
 		"--rpc-bind-ip", "127.0.0.1",
 		"--rpc-bind-port", strconv.Itoa(port),
-		"--disable-rpc-login",
 		"--non-interactive",
 		"--no-initial-sync",
 		"--log-file", logPath,
@@ -273,7 +293,7 @@ func startWalletRPC(cfg Config, port int, logPath, walletFile, walletDir, passwo
 		args = append(args, "--stagenet")
 	}
 	if walletFile != "" {
-		args = append(args, "--wallet-file", walletFile, "--password", password)
+		args = append(args, "--wallet-file", walletFile)
 	}
 	if walletDir != "" {
 		args = append(args, "--wallet-dir", walletDir)
@@ -289,12 +309,51 @@ func startWalletRPC(cfg Config, port int, logPath, walletFile, walletDir, passwo
 		f.Close()
 		return nil, err
 	}
-	p := &rpcProcess{cmd: cmd, log: f, logPath: logPath + ".stdout", done: make(chan struct{})}
+	p := &rpcProcess{cmd: cmd, log: f, logPath: logPath + ".stdout", rpcUser: "xns", rpcPassword: rpcPassword, done: make(chan struct{})}
 	go func() {
 		_ = cmd.Wait()
 		close(p.done)
 	}()
 	return p, nil
+}
+
+func writeWalletRPCConfig(path, rpcUser, rpcPassword, passwordFile string) error {
+	var b strings.Builder
+	b.WriteString("rpc-login=")
+	b.WriteString(rpcUser)
+	b.WriteByte(':')
+	b.WriteString(rpcPassword)
+	b.WriteByte('\n')
+	if passwordFile != "" {
+		b.WriteString("password-file=")
+		b.WriteString(filepath.ToSlash(passwordFile))
+		b.WriteByte('\n')
+	}
+	return writePrivateFile(path, []byte(b.String()))
+}
+
+func writePrivateFile(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+func randomHex(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func (p *rpcProcess) stop() {
