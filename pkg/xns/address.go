@@ -18,7 +18,7 @@ const (
 var moneroBase58EncodedBlockSizes = [...]int{0, 2, 3, 5, 6, 7, 9, 10, 11}
 
 func deriveProtocolAddress(prefix uint64) (string, error) {
-	spend, err := hex.DecodeString(ProtocolSpendPublicKey)
+	spend, err := ProtocolSpendPublicKey()
 	if err != nil {
 		return "", err
 	}

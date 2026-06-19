@@ -5,8 +5,8 @@ const (
 	StagenetAddressPrefix = uint64(24)
 	TestnetAddressPrefix  = uint64(53)
 
-	ProtocolViewSecret     = "c2694f7b2ba66ada8548e31c4ef1616ddce71b47969a337c293f7a72d5804909"
-	ProtocolSpendPublicKey = "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+	ProtocolViewSecret          = "935830fc11250e25153160951c1ba9152e5fee00763890314b67532ae6385607"
+	ProtocolSpendPublicKeyInput = "XNS"
 
 	MainnetProtocolRestoreHeight  = uint64(3690551)
 	StagenetProtocolRestoreHeight = uint64(2135563)

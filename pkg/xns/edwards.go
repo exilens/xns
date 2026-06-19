@@ -65,6 +65,17 @@ func decodePoint(raw []byte) (point, error) {
 	return point{x, y}, nil
 }
 
+func encodePoint(p point) []byte {
+	y := new(big.Int).Set(p.y)
+	out := make([]byte, 32)
+	for i := range out {
+		out[i] = byte(y.Uint64())
+		y.Rsh(y, 8)
+	}
+	out[31] |= byte(p.x.Bit(0)) << 7
+	return out
+}
+
 func scalarMult(p point, n *big.Int) point {
 	result := identity
 	addend := p
