@@ -1,9 +1,17 @@
 filippo.io/edwards25519 v1.2.0 h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=
 filippo.io/edwards25519 v1.2.0/go.mod h1:xzAOLCNug/yB62zG1bQ8uziwrIqIuxhctzJT18Q77mc=
+git.gammaspectra.live/P2Pool/blake2b v0.42.1 h1:Y8wR9XTCA95MWXULzydAvj/8+td2/oHb7SWtbwAXpOA=
+git.gammaspectra.live/P2Pool/blake2b v0.42.1/go.mod h1:BYEHzMel96uAsRcarHolru4XoteQvZclIQl639MzyF8=
 git.gammaspectra.live/P2Pool/consensus/v5 v5.0.4 h1:E8WLP3UvvLVKwT+T1xAEMkKOD8QZUJHOW0YAEZrVJsc=
 git.gammaspectra.live/P2Pool/consensus/v5 v5.0.4/go.mod h1:OxU+wFN0pt0TWzxHVz11I4R0Of0c6ogK9AGDbW3qWzo=
+git.gammaspectra.live/P2Pool/edwards25519 v0.0.0-20251206112811-c233ac191587 h1:k/lv7oKRLFO3zmwEVpC8tjgTzQfKK0aF2QZU1+x8lZk=
+git.gammaspectra.live/P2Pool/edwards25519 v0.0.0-20251206112811-c233ac191587/go.mod h1:FZsrMWGucMP3SZamzrd7m562geIs5zp1O/9MGoiAKH0=
 git.gammaspectra.live/P2Pool/go-hex v0.0.0-20251214231021-098f65fc1214 h1:MWH8m0+hFBHVniKvkLy1rbVODLv6uq4/fYmL8IPcuJQ=
 git.gammaspectra.live/P2Pool/go-hex v0.0.0-20251214231021-098f65fc1214/go.mod h1:b4whW/umqLY4eVZ4eaSgumFQNIFPCrO20AQoSR0vS5s=
+git.gammaspectra.live/P2Pool/helioselene v0.0.0-20251201070947-26d62186ee7f h1:GhUO/P1F46V1116Zy5z8saf9DWbF7CLzgNxYVG/Rzdo=
+git.gammaspectra.live/P2Pool/helioselene v0.0.0-20251201070947-26d62186ee7f/go.mod h1:Fm12rnuWBl6gllpAbOt7BWv+hAEXJ6K3P+ooxd2XXgA=
+git.gammaspectra.live/P2Pool/monero-base58 v1.0.0 h1:s8LZxVNc93YEs2NCCNWZ7CKr8RbEb031y6Wkvhn+TS4=
+git.gammaspectra.live/P2Pool/monero-base58 v1.0.0/go.mod h1:WWEJy/AdWKxKAruvlKI82brw+DtVlePy0ct3ZiBlc68=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/mattn/go-sqlite3 v1.14.45 h1:6KA/spDguL3KV8rnybG7ezSaE4SeMR3KC9VbUoAQaIk=
