@@ -1,4 +1,4 @@
-module xns
+module github.com/exilens/xns
 
 go 1.26
 

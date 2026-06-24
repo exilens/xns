@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"xns/pkg/monero"
-	"xns/pkg/xns"
+	"github.com/exilens/xns/pkg/monero"
+	"github.com/exilens/xns/pkg/xns"
 )
 
 type Config struct {

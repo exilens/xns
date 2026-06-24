@@ -9,7 +9,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"xns/pkg/xns"
+	"github.com/exilens/xns/pkg/xns"
 )
 
 type Snapshot struct {

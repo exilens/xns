@@ -21,9 +21,9 @@ import (
 	"syscall"
 	"time"
 
-	"xns/pkg/monero"
-	"xns/pkg/store"
-	"xns/pkg/xns"
+	"github.com/exilens/xns/pkg/monero"
+	"github.com/exilens/xns/pkg/store"
+	"github.com/exilens/xns/pkg/xns"
 
 	"golang.org/x/crypto/sha3"
 )

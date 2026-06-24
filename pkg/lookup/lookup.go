@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"xns/pkg/xns"
+	"github.com/exilens/xns/pkg/xns"
 )
 
 type Config struct {

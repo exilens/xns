@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 
-	"xns/pkg/claim"
-	"xns/pkg/indexer"
-	"xns/pkg/lookup"
+	"github.com/exilens/xns/pkg/claim"
+	"github.com/exilens/xns/pkg/indexer"
+	"github.com/exilens/xns/pkg/lookup"
 )
 
 func main() {

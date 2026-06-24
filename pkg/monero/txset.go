@@ -13,7 +13,7 @@ import (
 	"git.gammaspectra.live/P2Pool/consensus/v5/monero/cryptonight"
 	"golang.org/x/crypto/sha3"
 
-	"xns/pkg/xns"
+	"github.com/exilens/xns/pkg/xns"
 )
 
 const (
