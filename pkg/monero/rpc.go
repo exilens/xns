@@ -2,17 +2,24 @@ package monero
 
 import (
 	"bytes"
+	"crypto/md5"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 type WalletClient struct {
-	URL string
-	cli *http.Client
+	URL  string
+	cli  *http.Client
+	auth *digestAuth
 }
 
 type DaemonClient struct {
@@ -22,6 +29,14 @@ type DaemonClient struct {
 
 func NewWallet(url string) WalletClient {
 	return WalletClient{URL: strings.TrimRight(url, "/"), cli: client()}
+}
+
+func NewWalletWithLogin(url, username, password string) WalletClient {
+	return WalletClient{
+		URL:  strings.TrimRight(url, "/"),
+		cli:  client(),
+		auth: &digestAuth{Username: username, Password: password},
+	}
 }
 
 func NewDaemon(url string) DaemonClient {
@@ -117,22 +132,31 @@ func (c DaemonClient) Block(height uint64) (Block, error) {
 	return Block{Hash: out.Result.BlockHeader.Hash, TxHashes: out.Result.TxHashes}, nil
 }
 
-func (c WalletClient) post(url string, body any, out any) error { return doPost(c.cli, url, body, out) }
-func (c DaemonClient) post(url string, body any, out any) error { return doPost(c.cli, url, body, out) }
+func (c WalletClient) post(url string, body any, out any) error {
+	return doPost(c.cli, url, body, out, c.auth)
+}
+func (c DaemonClient) post(url string, body any, out any) error {
+	return doPost(c.cli, url, body, out, nil)
+}
 
-func doPost(cli *http.Client, url string, body any, out any) error {
+func doPost(cli *http.Client, rawURL string, body any, out any, auth *digestAuth) error {
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
-	resp, err := cli.Post(url, "application/json", bytes.NewReader(raw))
+	resp, data, err := postJSON(cli, rawURL, raw, "")
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
+	if resp.StatusCode == http.StatusUnauthorized && auth != nil {
+		authz, err := auth.authorization("POST", rawURL, resp.Header.Get("WWW-Authenticate"))
+		if err != nil {
+			return err
+		}
+		resp, data, err = postJSON(cli, rawURL, raw, authz)
+		if err != nil {
+			return err
+		}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return fmt.Errorf("%s: %s", resp.Status, string(data))
@@ -144,6 +168,174 @@ func doPost(cli *http.Client, url string, body any, out any) error {
 		return fmt.Errorf("decode rpc response: %w: %s", err, string(data))
 	}
 	return nil
+}
+
+func postJSON(cli *http.Client, rawURL string, body []byte, authorization string) (*http.Response, []byte, error) {
+	req, err := http.NewRequest(http.MethodPost, rawURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
+	resp, err := cli.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resp, data, nil
+}
+
+type digestAuth struct {
+	Username string
+	Password string
+
+	mu sync.Mutex
+	nc uint32
+}
+
+func (a *digestAuth) authorization(method, rawURL, challenge string) (string, error) {
+	fields, err := parseDigestChallenge(challenge)
+	if err != nil {
+		return "", err
+	}
+	realm := fields["realm"]
+	nonce := fields["nonce"]
+	if realm == "" || nonce == "" {
+		return "", fmt.Errorf("digest challenge missing realm or nonce")
+	}
+	algorithm := strings.ToUpper(fields["algorithm"])
+	if algorithm != "" && algorithm != "MD5" {
+		return "", fmt.Errorf("unsupported digest algorithm %q", fields["algorithm"])
+	}
+	qop := "auth"
+	if values := strings.Split(fields["qop"], ","); fields["qop"] != "" {
+		qop = ""
+		for _, value := range values {
+			if strings.TrimSpace(value) == "auth" {
+				qop = "auth"
+				break
+			}
+		}
+		if qop == "" {
+			return "", fmt.Errorf("digest challenge does not support qop=auth")
+		}
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	uri := parsed.RequestURI()
+	cnonce, err := randomHex(16)
+	if err != nil {
+		return "", err
+	}
+	a.mu.Lock()
+	a.nc++
+	nc := fmt.Sprintf("%08x", a.nc)
+	a.mu.Unlock()
+
+	ha1 := md5Hex(a.Username + ":" + realm + ":" + a.Password)
+	ha2 := md5Hex(method + ":" + uri)
+	var response string
+	if qop == "" {
+		response = md5Hex(ha1 + ":" + nonce + ":" + ha2)
+	} else {
+		response = md5Hex(ha1 + ":" + nonce + ":" + nc + ":" + cnonce + ":" + qop + ":" + ha2)
+	}
+
+	parts := []string{
+		`Digest username=` + strconv.Quote(a.Username),
+		`realm=` + strconv.Quote(realm),
+		`nonce=` + strconv.Quote(nonce),
+		`uri=` + strconv.Quote(uri),
+		`response=` + strconv.Quote(response),
+	}
+	if opaque := fields["opaque"]; opaque != "" {
+		parts = append(parts, `opaque=`+strconv.Quote(opaque))
+	}
+	if qop != "" {
+		parts = append(parts, `qop=`+qop, `nc=`+nc, `cnonce=`+strconv.Quote(cnonce))
+	}
+	if algorithm != "" {
+		parts = append(parts, `algorithm=MD5`)
+	}
+	return strings.Join(parts, ", "), nil
+}
+
+func parseDigestChallenge(challenge string) (map[string]string, error) {
+	challenge = strings.TrimSpace(challenge)
+	if !strings.HasPrefix(strings.ToLower(challenge), "digest ") {
+		return nil, fmt.Errorf("unsupported authentication challenge")
+	}
+	challenge = strings.TrimSpace(challenge[len("Digest "):])
+	out := make(map[string]string)
+	for len(challenge) > 0 {
+		challenge = strings.TrimLeft(challenge, " ,")
+		if challenge == "" {
+			break
+		}
+		eq := strings.IndexByte(challenge, '=')
+		if eq < 0 {
+			return nil, fmt.Errorf("malformed digest challenge")
+		}
+		key := strings.ToLower(strings.TrimSpace(challenge[:eq]))
+		challenge = strings.TrimSpace(challenge[eq+1:])
+		var value string
+		if strings.HasPrefix(challenge, `"`) {
+			var err error
+			value, challenge, err = readQuoted(challenge)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			next := strings.IndexByte(challenge, ',')
+			if next < 0 {
+				value = strings.TrimSpace(challenge)
+				challenge = ""
+			} else {
+				value = strings.TrimSpace(challenge[:next])
+				challenge = challenge[next+1:]
+			}
+		}
+		out[key] = value
+	}
+	return out, nil
+}
+
+func readQuoted(s string) (string, string, error) {
+	for i := 1; i < len(s); i++ {
+		if s[i] == '\\' {
+			i++
+			continue
+		}
+		if s[i] == '"' {
+			value, err := strconv.Unquote(s[:i+1])
+			if err != nil {
+				return "", "", err
+			}
+			return value, s[i+1:], nil
+		}
+	}
+	return "", "", fmt.Errorf("unterminated quoted digest value")
+}
+
+func md5Hex(s string) string {
+	sum := md5.Sum([]byte(s))
+	return hex.EncodeToString(sum[:])
+}
+
+func randomHex(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 type RPCError struct {

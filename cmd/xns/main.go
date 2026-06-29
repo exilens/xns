@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/exilens/xns/pkg/claim"
 	"github.com/exilens/xns/pkg/indexer"
@@ -50,11 +52,16 @@ func usage() {
 
 func runClaim(args []string) error {
 	cfg := claim.Config{}
+	var walletPasswordFile string
+	var walletPasswordStdin bool
 	fs := flag.NewFlagSet("claim", flag.ExitOnError)
 	fs.BoolVar(&cfg.Mainnet, "mainnet", false, "use mainnet")
 	fs.BoolVar(&cfg.Stagenet, "stagenet", false, "use stagenet")
+	fs.BoolVar(&cfg.DryRun, "dry-run", false, "prepare claim transaction without signing or broadcasting")
 	fs.StringVar(&cfg.WalletFile, "wallet-file", "", "Monero wallet file")
 	fs.StringVar(&cfg.WalletPassword, "wallet-password", "", "Monero wallet password")
+	fs.StringVar(&walletPasswordFile, "wallet-password-file", "", "read Monero wallet password from file")
+	fs.BoolVar(&walletPasswordStdin, "wallet-password-stdin", false, "read Monero wallet password from stdin")
 	fs.StringVar(&cfg.Name, "name", "", "XNS name")
 	fs.StringVar(&cfg.Owner, "owner", "", "32-byte Ed25519 owner public key as hex")
 	fs.StringVar(&cfg.Node, "node", "", "Monero daemon RPC URL")
@@ -62,16 +69,66 @@ func runClaim(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if err := requireFlags(fs, "wallet-file", "wallet-password", "name", "owner", "node", "years"); err != nil {
+	if err := requireFlags(fs, "wallet-file", "name", "owner", "node", "years"); err != nil {
 		fs.Usage()
 		return err
 	}
-	cfg.WalletPasswordSet = true
+	if err := resolveWalletPassword(fs, &cfg, walletPasswordFile, walletPasswordStdin, os.Stdin); err != nil {
+		fs.Usage()
+		return err
+	}
 	out, err := claim.Run(cfg)
 	if err != nil {
 		return err
 	}
 	return claim.PrintJSON(out)
+}
+
+func resolveWalletPassword(fs *flag.FlagSet, cfg *claim.Config, passwordFile string, passwordStdin bool, stdin io.Reader) error {
+	passwordFlagSet := flagWasSet(fs, "wallet-password")
+	sources := 0
+	if passwordFlagSet {
+		sources++
+	}
+	if passwordFile != "" {
+		sources++
+	}
+	if passwordStdin {
+		sources++
+	}
+	if sources != 1 {
+		return fmt.Errorf("specify exactly one of --wallet-password, --wallet-password-file, or --wallet-password-stdin")
+	}
+	if passwordFile != "" {
+		raw, err := os.ReadFile(passwordFile)
+		if err != nil {
+			return fmt.Errorf("read wallet password file: %w", err)
+		}
+		cfg.WalletPassword = trimPasswordTerminator(string(raw))
+	}
+	if passwordStdin {
+		raw, err := io.ReadAll(stdin)
+		if err != nil {
+			return fmt.Errorf("read wallet password from stdin: %w", err)
+		}
+		cfg.WalletPassword = trimPasswordTerminator(string(raw))
+	}
+	cfg.WalletPasswordSet = true
+	return nil
+}
+
+func flagWasSet(fs *flag.FlagSet, name string) bool {
+	found := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
+}
+
+func trimPasswordTerminator(password string) string {
+	return strings.TrimRight(password, "\r\n")
 }
 
 func runLookup(args []string) error {

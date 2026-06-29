@@ -3,6 +3,7 @@ package indexer
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -68,11 +69,13 @@ type Server struct {
 }
 
 type rpcProcess struct {
-	cmd      *exec.Cmd
-	log      *os.File
-	logPath  string
-	done     chan struct{}
-	stopOnce sync.Once
+	cmd         *exec.Cmd
+	log         *os.File
+	logPath     string
+	rpcUser     string
+	rpcPassword string
+	done        chan struct{}
+	stopOnce    sync.Once
 }
 
 func Run(cfg Config) error {
@@ -219,7 +222,7 @@ func protocolWallet(cfg Config) (monero.WalletClient, *rpcProcess, error) {
 	if err != nil {
 		return monero.WalletClient{}, nil, err
 	}
-	wallet := monero.NewWallet(fmt.Sprintf("http://127.0.0.1:%d", port))
+	wallet := monero.NewWalletWithLogin(fmt.Sprintf("http://127.0.0.1:%d", port), proc.rpcUser, proc.rpcPassword)
 	if err := waitWallet(wallet, proc); err != nil {
 		proc.stop()
 		return monero.WalletClient{}, nil, err
@@ -283,10 +286,25 @@ func removeDBFiles(dbFile string) error {
 }
 
 func startWalletRPC(cfg Config, port int, logPath, walletFile, walletDir string) (*rpcProcess, error) {
+	rpcPassword, err := randomHex(32)
+	if err != nil {
+		return nil, err
+	}
+	configPath := logPath + ".conf"
+	passwordFile := ""
+	if walletFile != "" {
+		passwordFile = logPath + ".wallet-password"
+		if err := writePrivateFile(passwordFile, nil); err != nil {
+			return nil, err
+		}
+	}
+	if err := writeWalletRPCConfig(configPath, "xns", rpcPassword, passwordFile); err != nil {
+		return nil, err
+	}
 	args := []string{
+		"--config-file", configPath,
 		"--rpc-bind-ip", "127.0.0.1",
 		"--rpc-bind-port", strconv.Itoa(port),
-		"--disable-rpc-login",
 		"--non-interactive",
 		"--no-initial-sync",
 		"--log-file", logPath,
@@ -298,7 +316,7 @@ func startWalletRPC(cfg Config, port int, logPath, walletFile, walletDir string)
 		args = append(args, "--stagenet")
 	}
 	if walletFile != "" {
-		args = append(args, "--wallet-file", walletFile, "--password", "")
+		args = append(args, "--wallet-file", walletFile)
 	}
 	if walletDir != "" {
 		args = append(args, "--wallet-dir", walletDir)
@@ -314,12 +332,51 @@ func startWalletRPC(cfg Config, port int, logPath, walletFile, walletDir string)
 		f.Close()
 		return nil, err
 	}
-	p := &rpcProcess{cmd: cmd, log: f, logPath: logPath + ".stdout", done: make(chan struct{})}
+	p := &rpcProcess{cmd: cmd, log: f, logPath: logPath + ".stdout", rpcUser: "xns", rpcPassword: rpcPassword, done: make(chan struct{})}
 	go func() {
 		_ = cmd.Wait()
 		close(p.done)
 	}()
 	return p, nil
+}
+
+func writeWalletRPCConfig(path, rpcUser, rpcPassword, passwordFile string) error {
+	var b strings.Builder
+	b.WriteString("rpc-login=")
+	b.WriteString(rpcUser)
+	b.WriteByte(':')
+	b.WriteString(rpcPassword)
+	b.WriteByte('\n')
+	if passwordFile != "" {
+		b.WriteString("password-file=")
+		b.WriteString(filepath.ToSlash(passwordFile))
+		b.WriteByte('\n')
+	}
+	return writePrivateFile(path, []byte(b.String()))
+}
+
+func writePrivateFile(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+func randomHex(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func (p *rpcProcess) stop() {
